@@ -1,3 +1,9 @@
+type NonFunctionPropertyNames<T> = { [K in keyof T]: T[K] extends Function ? never : K }[keyof T];
+
+type WithoutFunction<T, K = NonFunctionPropertyNames<T>> = {
+  [P in K & keyof T]: T[P] extends object ? WithoutFunction<T[P]> : T[P]
+}
+
 class GraphqlType {
   private propertyAndArgsMap: { [propertyName: string]: [string, any][] } = {};
 
@@ -10,49 +16,59 @@ class GraphqlType {
   }
 }
 
-export default class Query extends GraphqlType {
-  static addUser(userId: number, user: User): Query & { user: User } {
-    const query = new Query();
-    query.addPropertyAndArgs('user', [['userId', userId]]);
-
-    return Object.assign(query, {
-      user,
-    });
+export namespace Query {
+  export function addUser<T extends UserType>(userId: number, user: T): QueryType & { user: T } {
+    const query = new QueryType();
+    return query.addUser(userId, user);
   }
 
-  addUser(userId: number, user: User): this & { user: User } {
+  export function addPost<T extends PostType>(postId: number, post: T): QueryType & { post: T } {
+    const query = new QueryType();
+    return query.addPost(postId, post);
+  }
+}
+
+class QueryType extends GraphqlType {
+  addUser<T extends UserType>(userId: number, user: T): this & { user: T } {
     this.addPropertyAndArgs('user', [['userId', userId]]);
 
     return Object.assign(this, {
       user,
     });
   }
-}
 
-class User extends GraphqlType {
-  static addId(): User & { id: number } {
-    const user = new User();
-    user.addPropertyAndArgs('id');
+  addPost<T extends PostType>(postId: number, post: T): this & { post: T } {
+    this.addPropertyAndArgs('post', [['postId', postId]]);
 
-    return Object.assign(user, {
-      id: NaN,
+    return Object.assign(this, {
+      post,
     });
   }
 
+  async fetch(): Promise<WithoutFunction<this>> {
+    // TODO
+    return;
+  }
+}
+
+export namespace User {
+  export function addId(): UserType & { id: number } {
+    const user = new UserType();
+    return user.addId();
+  }
+
+  export function addUsername(): UserType & { username: string } {
+    const user = new UserType();
+    return user.addUsername();
+  }
+}
+
+class UserType extends GraphqlType {
   addId(): this & { id: number } {
     this.addPropertyAndArgs('id');
 
     return Object.assign(this, {
       id: NaN,
-    });
-  }
-
-  static addUsername(): User & { username: string } {
-    const user = new User();
-    user.addPropertyAndArgs('username');
-
-    return Object.assign(user, {
-      username: '',
     });
   }
 
@@ -65,30 +81,29 @@ class User extends GraphqlType {
   }
 }
 
-class Post extends GraphqlType {
-  static addId(): Post & { id: number } {
-    const post = new Post();
-    post.addPropertyAndArgs('id');
-
-    return Object.assign(post, {
-      id: NaN,
-    });
+export namespace Post {
+  export function addId(): PostType & { id: number } {
+    const post = new PostType();
+    return post.addId();
   }
 
+  export function addTitle(): PostType & { title: string } {
+    const post = new PostType();
+    return post.addTitle();
+  }
+
+  export function addWriter<T extends UserType>(writer: T): PostType & { writer: T } {
+    const post = new PostType();
+    return post.addWriter(writer);
+  }
+}
+
+class PostType extends GraphqlType {
   addId(): this & { id: number } {
     this.addPropertyAndArgs('id');
 
     return Object.assign(this, {
       id: NaN,
-    });
-  }
-
-  static addTitle(): Post & { title: string } {
-    const post = new Post();
-    post.addPropertyAndArgs('title');
-
-    return Object.assign(post, {
-      title: '',
     });
   }
 
@@ -100,16 +115,7 @@ class Post extends GraphqlType {
     });
   }
 
-  static addWriter(writer: User): Post & { writer: User } {
-    const post = new Post();
-    post.addPropertyAndArgs('writer');
-
-    return Object.assign(post, {
-      writer,
-    });
-  }
-
-  addWriter(writer: User): this & { writer: User } {
+  addWriter<T extends UserType>(writer: T): this & { writer: T } {
     this.addPropertyAndArgs('writer');
 
     return Object.assign(this, {

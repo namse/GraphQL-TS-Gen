@@ -27,7 +27,7 @@ function convertToTsType(type: GraphQLType): string {
     case 'Boolean':
       return 'boolean';
     default:
-      return typeStringWithoutExclamationMark
+      return typeStringWithoutExclamationMark;
   }
 }
 
@@ -52,23 +52,33 @@ function convertArgsToNameAndTypes(args: GraphQLArgument[]): { name: string, tsT
 
 function travel(object: GraphQLObjectType) {
   const typeName = object.name;
-  const isExportableClass = typeName === 'Query';
-  let result: string = `
-${isExportableClass ? 'export default ' : ''}class ${typeName} extends GraphqlType {
-`;
+  const isQuery = typeName === 'Query';
+  const className = `${typeName}Type`;
 
-  const methodStrings = Object.entries(object.getFields()).map(([name, field]) => {
+  let namespaceString = `
+export namespace ${typeName} {
+`;
+  let classString: string = `
+class ${className} extends GraphqlType {
+`;
+  const namespaceMethodStrings: string[] = [];
+  const classMethodStrings: string[] = [];
+
+  Object.entries(object.getFields()).forEach(([name, field]) => {
     const instanceName = toCamelCase(typeName);
+    const isPrimitiveType = isPrimitive(field.type);
     const fieldTsType = convertToTsType(field.type);
     const defaultValue = defaultValueMap[fieldTsType];
-    const isPrimitiveType = isPrimitive(field.type);
 
     const paramNameAndTypes = convertArgsToNameAndTypes(field.args);
+
+    const genericString = isPrimitiveType ? '' : `<T extends ${fieldTsType}Type>`;
+    const isGeneric = !isPrimitiveType;
 
     const paramNameAndTypesForParamString = [...paramNameAndTypes];
 
     if (!isPrimitiveType) {
-      paramNameAndTypesForParamString.push({ name: toCamelCase(name), tsType: fieldTsType });
+      paramNameAndTypesForParamString.push({ name: toCamelCase(name), tsType: 'T' });
     }
 
     const paramString = paramNameAndTypesForParamString.map(({ name, tsType }) => `${name}: ${tsType}`).join(', ');
@@ -80,27 +90,48 @@ ${isExportableClass ? 'export default ' : ''}class ${typeName} extends GraphqlTy
       ${name}${isPrimitiveType ? `: ${defaultValue},` : ','}
     }`
 
-    return `  static add${toPascalCase(name)}(${paramString}): ${typeName} & { ${name}: ${fieldTsType} } {
-    const ${instanceName} = new ${typeName}();
-    ${instanceName}.addPropertyAndArgs('${name}'${tupleStringForAddProperty});
+    const functionName = `add${toPascalCase(name)}`;
 
-    return Object.assign(${instanceName}, ${assignedObjectString});
-  }
 
-  add${toPascalCase(name)}(${paramString}): this & { ${name}: ${fieldTsType} } {
+    const classMethodString = `  ${functionName}${genericString}(${paramString}): this & { ${name}: ${isGeneric ? 'T' : fieldTsType} } {
     this.addPropertyAndArgs('${name}'${tupleStringForAddProperty});
 
     return Object.assign(this, ${assignedObjectString});
+  }`;
+
+    classMethodStrings.push(classMethodString);
+
+    const passingArgsNamesString = paramNameAndTypesForParamString.map(({name}) => name).join(', ');
+
+    const namespaceMethodString = `  export function ${functionName}${genericString}(${paramString}): ${className} & { ${name}: ${isGeneric ? 'T' : fieldTsType} } {
+    const ${instanceName} = new ${className}();
+    return ${instanceName}.${functionName}(${passingArgsNamesString});
   }`
+
+    namespaceMethodStrings.push(namespaceMethodString);
 
   });
 
-  result += methodStrings.join('\n\n');
-  result += `
+  namespaceString += namespaceMethodStrings.join('\n\n');
+  namespaceString += `
+}
+`
+
+  classString += classMethodStrings.join('\n\n');
+
+  if (isQuery) {
+    classString += `
+
+  async fetch(): Promise<WithoutFunction<this>> {
+    // TODO
+    return;
+  }`
+  }
+  classString += `
 }
 `;
 
-  return result;
+  return `${namespaceString}${classString}`;
 }
 
 export default function generateQueryGeneratorCode(schema: string) {
@@ -116,7 +147,13 @@ export default function generateQueryGeneratorCode(schema: string) {
       return travel(value as GraphQLObjectType);
     }).join('');
 
-  const result = `class GraphqlType {
+  const result = `type NonFunctionPropertyNames<T> = { [K in keyof T]: T[K] extends Function ? never : K }[keyof T];
+
+type WithoutFunction<T, K = NonFunctionPropertyNames<T>> = {
+  [P in K & keyof T]: T[P] extends object ? WithoutFunction<T[P]> : T[P]
+}
+
+class GraphqlType {
   private propertyAndArgsMap: { [propertyName: string]: [string, any][] } = {};
 
   protected addPropertyAndArgs(propertyName: string, args: [string, any][] = []) {
