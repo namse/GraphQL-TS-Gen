@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "esModuleInterop": true,
+        "target": "es2017",
+        "moduleResolution": "node",
+        "experimentalDecorators": true,
+        "resolveJsonModule": true,
+        "sourceMap": true,
+        "baseUrl": ".",
+        "outDir": "dist",
+        "lib": [
+            "esnext",
+            "dom"
+        ],
+        "paths": {
+            "@/*": [
+                "src/*"
+            ]
+        }
+    },
+    "include": [
+        "src/**/*",
+    ]
+}

@@ -1,0 +1,29 @@
+{
+  "name": "graphql-query-generator-generator",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "jest",
+    "build": "tsc",
+    "watch-build": "tsc -w"
+  },
+  "author": "Nam SeHyun <skatpgusskat@naver.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@types/node": "^10.12.18",
+    "fs-extra": "^7.0.1",
+    "graphql": "^0.13.2",
+    "typescript": "^3.2.2"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^5.0.5",
+    "@types/graphql": "^0.13.4",
+    "@types/jest": "^24.0.6",
+    "@types/mocha": "^5.2.6",
+    "jest": "^24.1.0",
+    "ts-jest": "^23.10.5",
+    "ts-node": "^8.0.2",
+    "ts-node-dev": "^1.0.0-pre.32"
+  }
+}
