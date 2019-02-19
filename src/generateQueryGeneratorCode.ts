@@ -157,7 +157,7 @@ class GraphqlType {
   private propertyAndArgsMap: { [propertyName: string]: [string, any][] } = {};
 
   protected addPropertyAndArgs(propertyName: string, args: [string, any][] = []) {
-    if (!this.propertyAndArgsMap[propertyName]) {
+    if (this.propertyAndArgsMap[propertyName]) {
       throw new Error(\`\${propertyName} already set before. duplicated.\`);
     }
 
