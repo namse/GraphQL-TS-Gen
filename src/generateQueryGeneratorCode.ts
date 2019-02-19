@@ -125,6 +125,12 @@ class ${className} extends GraphqlType {
   async fetch(): Promise<WithoutFunction<this>> {
     // TODO
     return;
+  }
+
+  toString(): string {
+    return \`{
+\${applyIndent(\`query \${super.toString()}\`, 2)}
+}\`;
   }`
   }
   classString += `
@@ -153,7 +159,11 @@ type WithoutFunction<T, K = NonFunctionPropertyNames<T>> = {
   [P in K & keyof T]: T[P] extends object ? WithoutFunction<T[P]> : T[P]
 }
 
-class GraphqlType {
+function applyIndent(string: string, indent: number): string {
+  return string.split('\\n').map(line => \`\${' '.repeat(indent)}\${line}\`).join('\\n');
+}
+
+abstract class GraphqlType {
   private propertyAndArgsMap: { [propertyName: string]: [string, any][] } = {};
 
   protected addPropertyAndArgs(propertyName: string, args: [string, any][] = []) {
@@ -162,6 +172,34 @@ class GraphqlType {
     }
 
     this.propertyAndArgsMap[propertyName] = args;
+  }
+
+  protected toString(): string {
+    const propertyNames = Object.keys(this.propertyAndArgsMap);
+
+    const propertiesString = propertyNames.map(propertyName => {
+      let result = \`\${propertyName}\`;
+
+      const args = this.propertyAndArgsMap[propertyName];
+
+      if (args.length) {
+        const argumentsString = args.map(([argumentName, argumentValue]) => \`\${argumentName}: \${argumentValue}\`).join(', ');
+        result += \`(\${argumentsString})\`;
+      }
+
+      const isPrimitiveType = !this[propertyName];
+      if (!isPrimitiveType) {
+        const graphqlType = this[propertyName] as GraphqlType;
+        result += \` \${graphqlType.toString()}\`;
+      }
+
+      return result;
+    })
+    .map(string => applyIndent(string, 2))
+    .join('\\n');
+    return \`{
+\${propertiesString}
+}\`;
   }
 }
 `;

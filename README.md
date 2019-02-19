@@ -29,4 +29,17 @@ query.fetch().then((result) => {
   result.post.writer.id
   result.post.writer.username
 });
+
+// true
+query.toString() === `{
+  query {
+    post(postId: 1) {
+      id
+      writer {
+        id
+        username
+      }
+    }
+  }
+}`;
 ```

@@ -4,7 +4,11 @@ type WithoutFunction<T, K = NonFunctionPropertyNames<T>> = {
   [P in K & keyof T]: T[P] extends object ? WithoutFunction<T[P]> : T[P]
 }
 
-class GraphqlType {
+function applyIndent(string: string, indent: number): string {
+  return string.split('\n').map(line => `${' '.repeat(indent)}${line}`).join('\n');
+}
+
+abstract class GraphqlType {
   private propertyAndArgsMap: { [propertyName: string]: [string, any][] } = {};
 
   protected addPropertyAndArgs(propertyName: string, args: [string, any][] = []) {
@@ -14,9 +18,47 @@ class GraphqlType {
 
     this.propertyAndArgsMap[propertyName] = args;
   }
+
+  protected toString(): string {
+    const propertyNames = Object.keys(this.propertyAndArgsMap);
+
+    const propertiesString = propertyNames.map(propertyName => {
+      let result = `${propertyName}`;
+
+      const args = this.propertyAndArgsMap[propertyName];
+
+      if (args.length) {
+        const argumentsString = args.map(([argumentName, argumentValue]) => `${argumentName}: ${argumentValue}`).join(', ');
+        result += `(${argumentsString})`;
+      }
+
+      const isPrimitiveType = !this[propertyName];
+      if (!isPrimitiveType) {
+        const graphqlType = this[propertyName] as GraphqlType;
+        result += ` ${graphqlType.toString()}`;
+      }
+
+      return result;
+    })
+    .map(string => applyIndent(string, 2))
+    .join('\n');
+    return `{
+${propertiesString}
+}`;
+  }
 }
 
 export namespace Query {
+  export function addId(): QueryType & { id: number } {
+    const query = new QueryType();
+    return query.addId();
+  }
+
+  export function addMe<T extends UserType>(me: T): QueryType & { me: T } {
+    const query = new QueryType();
+    return query.addMe(me);
+  }
+
   export function addUser<T extends UserType>(userId: number, user: T): QueryType & { user: T } {
     const query = new QueryType();
     return query.addUser(userId, user);
@@ -29,6 +71,22 @@ export namespace Query {
 }
 
 class QueryType extends GraphqlType {
+  addId(): this & { id: number } {
+    this.addPropertyAndArgs('id');
+
+    return Object.assign(this, {
+      id: NaN,
+    });
+  }
+
+  addMe<T extends UserType>(me: T): this & { me: T } {
+    this.addPropertyAndArgs('me');
+
+    return Object.assign(this, {
+      me,
+    });
+  }
+
   addUser<T extends UserType>(userId: number, user: T): this & { user: T } {
     this.addPropertyAndArgs('user', [['userId', userId]]);
 
@@ -48,6 +106,12 @@ class QueryType extends GraphqlType {
   async fetch(): Promise<WithoutFunction<this>> {
     // TODO
     return;
+  }
+
+  toString(): string {
+    return `{
+${applyIndent(`query ${super.toString()}`, 2)}
+}`;
   }
 }
 
