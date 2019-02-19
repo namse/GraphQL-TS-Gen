@@ -1,17 +1,26 @@
 import * as path from 'path';
 import fs from 'fs-extra';
 import generateQueryGeneratorCode from '../src/generateQueryGeneratorCode';
-import { Query, Post, User } from "./expected";
+import { Query, Post, User, setFetchFunction } from "./expected";
+import TestGraphQLServer from './testServer/TestGraphQLServer';
+import fetch from 'node-fetch';
 
 let queryGeneratorCode: string;
 
 let testGraphqlSchemaFile: string;
-
-test('read schema file', async () => {
+let server: TestGraphQLServer;
+beforeAll(async () => {
+  setFetchFunction(fetch);
   const schemaFilePath = path.join(__dirname, 'test.graphql');
   testGraphqlSchemaFile = await fs.readFile(schemaFilePath, { encoding: 'utf-8' });
+  server = new TestGraphQLServer(testGraphqlSchemaFile, 7777);
+  server.initServer();
+  server.startServer();
 });
 
+afterAll(() => {
+  server.stopServer();
+});
 
 test('generating without error', async () => {
   // Calling `done()` twice is an error
@@ -35,9 +44,7 @@ describe('provides toString() method, providing string query', async () => {
 
   // true
   expect(query.toString()).toEqual(`{
-  query {
-    id
-  }
+  id
 }`);
   });
 
@@ -51,11 +58,9 @@ describe('provides toString() method, providing string query', async () => {
 
   // true
   expect(query.toString()).toEqual(`{
-  query {
+  id
+  me {
     id
-    me {
-      id
-    }
   }
 }`);
   });
@@ -75,15 +80,50 @@ describe('provides toString() method, providing string query', async () => {
 
   // true
   expect(query.toString()).toEqual(`{
-  query {
-    post(postId: 1) {
+  post(postId: 1) {
+    id
+    writer {
       id
-      writer {
-        id
-        username
-      }
+      username
     }
   }
 }`);
   })
 });
+
+test('Fetch data with query.fetch method', async () => {
+  const query = Query
+    .addId()
+    .addPost(
+      2,
+      Post
+        .addId()
+        .addWriter(
+          User
+            .addId()
+            .addUsername()
+        )
+  );
+  const fetchOptions = {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+  };
+
+  // https://graphql.org/learn/serving-over-http/#response
+  const { data, errors } = await query.fetch('http://localhost:7777/graphql', fetchOptions);
+
+  expect(errors).toEqual(undefined);
+
+  expect(data).toEqual({
+    id: 1,
+    post: {
+      id: 2,
+      writer: {
+        id: 3,
+        username: 'namse',
+      },
+    },
+  });
+})

@@ -11,34 +11,41 @@ Check `test/expected.ts` please. I will put more description later.
 ``` ts
 import { ExtractTypeFromGraphQLQuery, Query, Post, User } from "./expected";
 
-const query = Query              // {
-  .addPost(                      //   query {
-    1,                           //     post(postId: 1) {
-    Post                         //       id
-      .addId()                   //       writer {
-      .addWriter(                //         id
-        User                     //         username
-          .addId()               //       }
-          .addUsername()         //     }
-      )                          //   }
-  )                              // }
+const query = Query       // {
+  .addPost(1, Post        //   post(postId: 1) {
+    .addId()              //     id
+    .addWriter(User       //     writer {
+      .addId()            //       id
+      .addUsername()      //       username
+    )                     //     }
+  )                       //   }
+)                         // }
 
-query.fetch().then((result) => {
-  result.post.id
-  result.post.title  // <- typescript error, because you didn't add 'title' on query.
-  result.post.writer.id
-  result.post.writer.username
-});
+
+// Same with ES6 Fetch's option.
+const fetchOptions = {
+  method: 'POST',
+  headers: {
+    'content-type': 'application/json',
+  },
+  // body: // NO!! You don't have to set body. YOU SHOULDN'T SET BODY YOURSELF!
+}
+
+// https://graphql.org/learn/serving-over-http/#response
+const { data, errors } = await query.fetch('your-graphql-server-url', fetchOptions);
+
+data.post.id;
+data.post.title;  // <- typescript error, because you didn't add 'title' on query.
+data.post.writer.id;
+data.post.writer.username;
 
 // true
 query.toString() === `{
-  query {
-    post(postId: 1) {
+  post(postId: 1) {
+    id
+    writer {
       id
-      writer {
-        id
-        username
-      }
+      username
     }
   }
 }`;

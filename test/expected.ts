@@ -4,8 +4,24 @@ export type ExtractTypeFromGraphQLQuery<T, K = NonFunctionPropertyNames<T>> = {
   [P in K & keyof T]: T[P] extends object ? ExtractTypeFromGraphQLQuery<T[P]> : T[P]
 }
 
+type GraphQLFetchResponse<T> = {
+  data: ExtractTypeFromGraphQLQuery<T>,
+  errors: any[],
+}
+
 function applyIndent(string: string, indent: number): string {
   return string.split('\n').map(line => `${' '.repeat(indent)}${line}`).join('\n');
+}
+
+type FetchFunction = (
+  url: string,
+  init?: any
+) => Promise<any>;
+
+let fetch: FetchFunction = global ? undefined : window && window.fetch;
+
+export function setFetchFunction(fetchFunction: FetchFunction) {
+  fetch = fetchFunction;
 }
 
 abstract class GraphqlType {
@@ -103,15 +119,38 @@ class QueryType extends GraphqlType {
     });
   }
 
-  async fetch(): Promise<ExtractTypeFromGraphQLQuery<this>> {
-    // TODO
-    return;
+  async fetch(url: string, options?: RequestInit): Promise<GraphQLFetchResponse<this>> {
+    if (!fetch) {
+      throw new Error('cannot find fetch function. please setFetchFunction() to set fetch function.');
+    }
+
+    const queryString = this.toString();
+
+    const queryStringWithoutWhiteSpaces = queryString.replace(/\s+/gm,'');
+
+    if (!options || !options.method || options.method === 'GET') {
+      url = `${url}?query=${queryStringWithoutWhiteSpaces}`;
+    } else {
+      options.body = JSON.stringify({
+        query: queryString,
+        // operationName: "...",                      // TODO
+        // variables: { "myVariable": "someValue", }, // TODO
+      });
+    }
+
+    const response = await fetch(url, options);
+
+    if (response.status < 200 || response.status >= 300) {
+      const text = await response.text();
+      throw new Error(text);
+    }
+
+    const json = response.json();
+    return json;
   }
 
   toString(): string {
-    return `{
-${applyIndent(`query ${super.toString()}`, 2)}
-}`;
+    return super.toString();
   }
 }
 
