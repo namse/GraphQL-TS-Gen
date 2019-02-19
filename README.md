@@ -9,7 +9,7 @@ Check `test/expected.ts` please. I will put more description later.
 # Example
 
 ``` ts
-import { Query, Post, User } from "./expected";
+import { ExtractTypeFromGraphQLQuery, Query, Post, User } from "./expected";
 
 const query = Query              // {
   .addPost(                      //   query {
@@ -42,4 +42,16 @@ query.toString() === `{
     }
   }
 }`;
+
+type QueryResultType = ExtractTypeFromGraphQLQuery<typeof query>;
+const result: QueryResultType = yourQueryResultFromServer;
+
+// No Typescript Compile Error, Yes Intellisense Auto Complete!
+result.post;
+result.post.id;
+result.post.writer;
+result.post.writer.id;
+result.post.writer.username;
+
+
 ```

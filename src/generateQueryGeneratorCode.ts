@@ -122,7 +122,7 @@ class ${className} extends GraphqlType {
   if (isQuery) {
     classString += `
 
-  async fetch(): Promise<WithoutFunction<this>> {
+  async fetch(): Promise<ExtractTypeFromGraphQLQuery<this>> {
     // TODO
     return;
   }
@@ -155,8 +155,8 @@ export default function generateQueryGeneratorCode(schema: string) {
 
   const result = `type NonFunctionPropertyNames<T> = { [K in keyof T]: T[K] extends Function ? never : K }[keyof T];
 
-type WithoutFunction<T, K = NonFunctionPropertyNames<T>> = {
-  [P in K & keyof T]: T[P] extends object ? WithoutFunction<T[P]> : T[P]
+export type ExtractTypeFromGraphQLQuery<T, K = NonFunctionPropertyNames<T>> = {
+  [P in K & keyof T]: T[P] extends object ? ExtractTypeFromGraphQLQuery<T[P]> : T[P]
 }
 
 function applyIndent(string: string, indent: number): string {
