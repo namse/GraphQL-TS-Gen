@@ -5,20 +5,36 @@ import {
   GraphQLType,
   parse,
   buildASTSchema,
+  GraphQLList,
+  GraphQLScalarType,
+  GraphQLNonNull,
+  GraphQLInt,
+  GraphQLFloat,
+  GraphQLString,
+  GraphQLBoolean,
 } from "graphql";
 import { toCamelCase, toPascalCase } from "./utils/stringUtils";
 
-const defaultValueMap = {
-  'number': NaN,
-  'string': "''",
-  'boolean': false,
+function getDefaultValueOfTypeInString(type: GraphQLType): string {
+  if (type instanceof GraphQLNonNull) {
+    return getDefaultValueOfTypeInString(type.ofType);
+  }
+  if(type instanceof GraphQLList) {
+    return '[]';
+  }
+  if (type === GraphQLInt || type === GraphQLFloat) {
+    return 'NaN';
+  }
+  if (type === GraphQLString) {
+    return "''";
+  }
+  if (type === GraphQLBoolean) {
+    return 'false';
+  }
 }
 
-function convertToTsType(type: GraphQLType): string {
-  const typeString = type.toString();
-  const isRequired = typeString.endsWith('!');
-  const typeStringWithoutExclamationMark = isRequired ? typeString.substring(0, typeString.length - 1) : typeString;
-  switch (typeStringWithoutExclamationMark) {
+function convertTypeNameToTsType(typeName: string): string {
+  switch (typeName) {
     case 'Int':
     case 'Float':
       return 'number';
@@ -27,21 +43,23 @@ function convertToTsType(type: GraphQLType): string {
     case 'Boolean':
       return 'boolean';
     default:
-      return typeStringWithoutExclamationMark;
+      return typeName;
   }
 }
 
-function isPrimitive(type: GraphQLType): boolean {
-  const typeString = type.toString();
-  const isRequired = typeString.endsWith('!');
-  const typeStringWithoutExclamationMark = isRequired ? typeString.substring(0, typeString.length - 1) : typeString;
+function convertToTsType(type: GraphQLType): string {
+  if (type instanceof GraphQLNonNull) {
+    return convertToTsType(type.ofType);
+  }
+  const typeName = getTypeName(type);
 
-  return [
-    'Int',
-    'Float',
-    'String',
-    'Boolean',
-  ].includes(typeStringWithoutExclamationMark.toString());
+  return `${convertTypeNameToTsType(typeName)}${type instanceof GraphQLList ? '[]' : ''}`;
+}
+
+function getTypeName(type: GraphQLType): string {
+  const typeString = type.toString();
+
+  return typeString.replace(/(\[)|(\])|(\!)/g, '');
 }
 
 function convertArgsToNameAndTypes(args: GraphQLArgument[]): { name: string, tsType: string }[] {
@@ -50,13 +68,46 @@ function convertArgsToNameAndTypes(args: GraphQLArgument[]): { name: string, tsT
   })
 }
 
+function checkIsSomethingOfScalar(type: GraphQLType): boolean {
+  if (type instanceof GraphQLNonNull) {
+    return checkIsSomethingOfScalar(type.ofType);
+  }
+  if(type instanceof GraphQLList) {
+    return checkIsSomethingOfScalar(type.ofType);
+  }
+  return type instanceof GraphQLScalarType;
+}
+
+function getNextTsType(type: GraphQLType): string {
+  if (type instanceof GraphQLNonNull) {
+    return getNextTsType(type.ofType);
+  }
+  if (type instanceof GraphQLObjectType) {
+    return 'T';
+  }
+  if (type instanceof GraphQLList) {
+    if (type.ofType instanceof GraphQLObjectType) {
+      return 'T[]';
+    }
+  }
+
+  return convertToTsType(type);
+}
+
+function isListOfObject(type: GraphQLType): boolean {
+  if (type instanceof GraphQLNonNull) {
+    return isListOfObject(type.ofType);
+  }
+  return type instanceof GraphQLList && type.ofType instanceof GraphQLObjectType;
+}
+
 function travel(object: GraphQLObjectType) {
-  const typeName = object.name;
-  const isQuery = typeName === 'Query';
-  const className = `${typeName}Type`;
+  const objectName = object.name;
+  const isQuery = objectName === 'Query';
+  const className = `${objectName}Type`;
 
   let namespaceString = `
-export namespace ${typeName} {
+export namespace ${objectName} {
 `;
   let classString: string = `
 class ${className} extends GraphqlType {
@@ -65,19 +116,18 @@ class ${className} extends GraphqlType {
   const classMethodStrings: string[] = [];
 
   Object.entries(object.getFields()).forEach(([name, field]) => {
-    const instanceName = toCamelCase(typeName);
-    const isPrimitiveType = isPrimitive(field.type);
-    const fieldTsType = convertToTsType(field.type);
-    const defaultValue = defaultValueMap[fieldTsType];
+    const { type } = field;
+    const typeName = getTypeName(type)
+    const instanceName = toCamelCase(objectName);
+    const isSomethingOfScalar = checkIsSomethingOfScalar(type);
 
     const paramNameAndTypes = convertArgsToNameAndTypes(field.args);
 
-    const genericString = isPrimitiveType ? '' : `<T extends ${fieldTsType}Type>`;
-    const isGeneric = !isPrimitiveType;
+    const genericString = isSomethingOfScalar ? '' : `<T extends ${typeName}Type>`;
 
     const paramNameAndTypesForParamString = [...paramNameAndTypes];
 
-    if (!isPrimitiveType) {
+    if (!isSomethingOfScalar) {
       paramNameAndTypesForParamString.push({ name: toCamelCase(name), tsType: 'T' });
     }
 
@@ -86,14 +136,19 @@ class ${className} extends GraphqlType {
       ? `, [${paramNameAndTypes.map(({ name }) => `['${name}', ${name}]`).join(', ')}]`
       : '';
 
+    const defaultValue = isListOfObject(type)
+      ? `[${toCamelCase(name)}]`
+      : getDefaultValueOfTypeInString(type);
+
     const assignedObjectString = `{
-      ${name}${isPrimitiveType ? `: ${defaultValue},` : ','}
+      ${name}${defaultValue ? `: ${defaultValue},` : ','}
     }`
 
     const functionName = `add${toPascalCase(name)}`;
 
+    const nextTsType = getNextTsType(type);
 
-    const classMethodString = `  ${functionName}${genericString}(${paramString}): this & { ${name}: ${isGeneric ? 'T' : fieldTsType} } {
+    const classMethodString = `  ${functionName}${genericString}(${paramString}): this & { ${name}: ${nextTsType} } {
     this.addPropertyAndArgs('${name}'${tupleStringForAddProperty});
 
     return Object.assign(this, ${assignedObjectString});
@@ -103,7 +158,7 @@ class ${className} extends GraphqlType {
 
     const passingArgsNamesString = paramNameAndTypesForParamString.map(({name}) => name).join(', ');
 
-    const namespaceMethodString = `  export function ${functionName}${genericString}(${paramString}): ${className} & { ${name}: ${isGeneric ? 'T' : fieldTsType} } {
+    const namespaceMethodString = `  export function ${functionName}${genericString}(${paramString}): ${className} & { ${name}: ${nextTsType} } {
     const ${instanceName} = new ${className}();
     return ${instanceName}.${functionName}(${passingArgsNamesString});
   }`
@@ -177,13 +232,22 @@ export default function generateQueryGeneratorCode(schema: string) {
     }).join('');
 
   const result = `type NonFunctionPropertyNames<T> = { [K in keyof T]: T[K] extends Function ? never : K }[keyof T];
+type PrimitiveType = number | string | boolean;
 
-export type ExtractTypeFromGraphQLQuery<T, K = NonFunctionPropertyNames<T>> = {
-  [P in K & keyof T]: T[P] extends object ? ExtractTypeFromGraphQLQuery<T[P]> : T[P]
-}
+interface GraphQLQueryArrayType<T> extends Array<GraphQLQueryType<T>> {}
+
+export type GraphQLQueryType<T, NFPN = NonFunctionPropertyNames<T>> =
+  T extends (infer U)[]
+  ? U extends PrimitiveType
+      ? Array<U>
+      : GraphQLQueryArrayType<U>
+  : {
+    [K in NFPN & keyof T]:
+      T[K] extends object ? GraphQLQueryType<T[K]> : T[K];
+  }
 
 type GraphQLFetchResponse<T> = {
-  data: ExtractTypeFromGraphQLQuery<T>,
+  data: GraphQLQueryType<T>,
   errors: any[],
 }
 
@@ -226,10 +290,13 @@ abstract class GraphqlType {
         result += \`(\${argumentsString})\`;
       }
 
-      const isPrimitiveType = !this[propertyName];
+      const property = this[propertyName];
+      const isPrimitiveType = !property;
       if (!isPrimitiveType) {
-        const graphqlType = this[propertyName] as GraphqlType;
-        result += \` \${graphqlType.toString()}\`;
+        const graphqlType = (property instanceof Array ? property[0] : property) as GraphqlType;
+        if (graphqlType) {
+          result += \` \${graphqlType.toString()}\`;
+        }
       }
 
       return result;

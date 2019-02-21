@@ -1,7 +1,7 @@
 import * as path from 'path';
 import fs from 'fs-extra';
 import generateQueryGeneratorCode from '../src/generateQueryGeneratorCode';
-import { Query, Post, User, setFetchFunction } from "./expected";
+import { Query, Post, User, setFetchFunction, Comment } from "./expected";
 import TestGraphQLServer from './testServer/TestGraphQLServer';
 import fetch from 'node-fetch';
 
@@ -127,3 +127,79 @@ test('Fetch data with query.fetch method', async () => {
     },
   });
 })
+
+test('supporting array', async () => {
+  const query = Query
+    .addPost(2, Post
+      .addId()
+      .addWriter(User
+        .addId()
+        .addUsername()
+      )
+      .addScores()
+      .addComments(Comment
+        .addId()
+        .addWriter(User
+          .addId()
+          .addUsername()
+          )
+        .addScores()
+      )
+    );
+
+  expect(query.toString()).toEqual(`{
+  post(postId: 2) {
+    id
+    writer {
+      id
+      username
+    }
+    scores
+    comments {
+      id
+      writer {
+        id
+        username
+      }
+      scores
+    }
+  }
+}`);
+
+  const fetchOptions = {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+  };
+
+  // https://graphql.org/learn/serving-over-http/#response
+  const { data, errors } = await query.fetch('http://localhost:7777/graphql', fetchOptions);
+
+  expect(errors).toEqual(undefined);
+  expect(data).toEqual({
+    post: {
+      id: 2,
+      writer: {
+        id: 3,
+        username: 'namse',
+      },
+      scores: [1, 2, 3],
+      comments: [{
+        id: 0,
+        writer: {
+          id: 4,
+          username: 'namse',
+        },
+        scores: [2, 3, 4],
+      }, {
+        id: 1,
+        writer: {
+          id: 4,
+          username: 'namse',
+        },
+        scores: [2, 3, 4],
+      }],
+    },
+  });
+});

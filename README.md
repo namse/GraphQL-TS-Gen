@@ -18,8 +18,11 @@ const query = Query       // {
       .addId()            //       id
       .addUsername()      //       username
     )                     //     }
-  )                       //   }
-)                         // }
+    .addComments(Comment  //     comments {
+      .addId()            //       id
+    )                     //     }
+  );                      //   }
+                          // }
 
 
 // Same with ES6 Fetch's option.
@@ -39,6 +42,10 @@ data.post.title;  // <- typescript error, because you didn't add 'title' on quer
 data.post.writer.id;
 data.post.writer.username;
 
+// <Array>
+data.post.comments[0].id
+data.post.comments[123123].id
+
 // true
 query.toString() === `{
   post(postId: 1) {
@@ -46,6 +53,9 @@ query.toString() === `{
     writer {
       id
       username
+    }
+    comments {
+      id
     }
   }
 }`;
@@ -59,6 +69,7 @@ result.post.id;
 result.post.writer;
 result.post.writer.id;
 result.post.writer.username;
-
+data.post.comments;
+data.post.comments[0].id;
 
 ```

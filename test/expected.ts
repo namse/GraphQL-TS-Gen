@@ -1,11 +1,20 @@
 type NonFunctionPropertyNames<T> = { [K in keyof T]: T[K] extends Function ? never : K }[keyof T];
+type PrimitiveType = number | string | boolean;
 
-export type ExtractTypeFromGraphQLQuery<T, K = NonFunctionPropertyNames<T>> = {
-  [P in K & keyof T]: T[P] extends object ? ExtractTypeFromGraphQLQuery<T[P]> : T[P]
-}
+interface GraphQLQueryArrayType<T> extends Array<GraphQLQueryType<T>> {}
+
+export type GraphQLQueryType<T, NFPN = NonFunctionPropertyNames<T>> =
+  T extends (infer U)[]
+  ? U extends PrimitiveType
+      ? Array<U>
+      : GraphQLQueryArrayType<U>
+  : {
+    [K in NFPN & keyof T]:
+      T[K] extends object ? GraphQLQueryType<T[K]> : T[K];
+  }
 
 type GraphQLFetchResponse<T> = {
-  data: ExtractTypeFromGraphQLQuery<T>,
+  data: GraphQLQueryType<T>,
   errors: any[],
 }
 
@@ -48,10 +57,13 @@ abstract class GraphqlType {
         result += `(${argumentsString})`;
       }
 
-      const isPrimitiveType = !this[propertyName];
+      const property = this[propertyName];
+      const isPrimitiveType = !property;
       if (!isPrimitiveType) {
-        const graphqlType = this[propertyName] as GraphqlType;
-        result += ` ${graphqlType.toString()}`;
+        const graphqlType = (property instanceof Array ? property[0] : property) as GraphqlType;
+        if (graphqlType) {
+          result += ` ${graphqlType.toString()}`;
+        }
       }
 
       return result;
@@ -199,6 +211,16 @@ export namespace Post {
     const post = new PostType();
     return post.addWriter(writer);
   }
+
+  export function addComments<T extends CommentType>(comments: T): PostType & { comments: T[] } {
+    const post = new PostType();
+    return post.addComments(comments);
+  }
+
+  export function addScores(): PostType & { scores: number[] } {
+    const post = new PostType();
+    return post.addScores();
+  }
 }
 
 class PostType extends GraphqlType {
@@ -223,6 +245,65 @@ class PostType extends GraphqlType {
 
     return Object.assign(this, {
       writer,
+    });
+  }
+
+  addComments<T extends CommentType>(comments: T): this & { comments: T[] } {
+    this.addPropertyAndArgs('comments');
+
+    return Object.assign(this, {
+      comments: [comments],
+    });
+  }
+
+  addScores(): this & { scores: number[] } {
+    this.addPropertyAndArgs('scores');
+
+    return Object.assign(this, {
+      scores: [],
+    });
+  }
+}
+
+export namespace Comment {
+  export function addId(): CommentType & { id: number } {
+    const comment = new CommentType();
+    return comment.addId();
+  }
+
+  export function addWriter<T extends UserType>(writer: T): CommentType & { writer: T } {
+    const comment = new CommentType();
+    return comment.addWriter(writer);
+  }
+
+  export function addScores(): CommentType & { scores: number[] } {
+    const comment = new CommentType();
+    return comment.addScores();
+  }
+}
+
+class CommentType extends GraphqlType {
+  addId(): this & { id: number } {
+    this.addPropertyAndArgs('id');
+
+    return Object.assign(this, {
+      id: NaN,
+    });
+  }
+
+  addWriter<T extends UserType>(writer: T): this & { writer: T } {
+    this.addPropertyAndArgs('writer');
+
+    return Object.assign(this, {
+      writer,
+    });
+  }
+
+  addScores(): this & { scores: number[] } {
+    this.addPropertyAndArgs('scores');
+
+    return Object.assign(this, {
+      scores: [],
     });
   }
 }

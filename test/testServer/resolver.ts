@@ -10,12 +10,22 @@ class Post {
 
   writer: User = new User();
 
-  constructor(public _id: number = 2) {
+  comments: Comment[] = [new Comment(0), new Comment(1)];
+
+  scores: number[] = [1, 2, 3];
+
+  constructor(public id: number = 2) {
 
   }
-  get id() {
-    console.log(this._id);
-    return this._id;
+}
+
+class Comment {
+  writer: User = new User(4);
+
+  scores: number[] = [2, 3, 4];
+
+  constructor(public id: number) {
+
   }
 }
 

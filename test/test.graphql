@@ -1,13 +1,20 @@
 type User {
   id: Int!
   username: String!
-
 }
 
 type Post {
   id: Int!
   title: String!
   writer: User!
+  comments: [Comment]!
+  scores: [Int]!
+}
+
+type Comment {
+  id: Int!
+  writer: User!
+  scores: [Int]!
 }
 
 type Query {
