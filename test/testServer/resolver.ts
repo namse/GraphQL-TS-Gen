@@ -14,6 +14,8 @@ class Post {
 
   scores: number[] = [1, 2, 3];
 
+  createdAt: Date = new Date('2019-02-22T13:54:01.690Z');
+
   constructor(public id: number = 2) {
 
   }

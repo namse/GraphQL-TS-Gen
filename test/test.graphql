@@ -1,3 +1,5 @@
+scalar Date
+
 type User {
   id: Int!
   username: String!
@@ -9,6 +11,7 @@ type Post {
   writer: User!
   comments: [Comment]!
   scores: [Int]!
+  createdAt: Date!
 }
 
 type Comment {

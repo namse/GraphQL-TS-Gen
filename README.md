@@ -21,6 +21,7 @@ const query = Query       // {
     .addComments(Comment  //     comments {
       .addId()            //       id
     )                     //     }
+    .addCreatedAt()       //     createdAt
   );                      //   }
                           // }
 
@@ -42,6 +43,9 @@ data.post.title;  // <- typescript error, because you didn't add 'title' on quer
 data.post.writer.id;
 data.post.writer.username;
 
+// <Scalar - Date>
+data.post.createdAt;  // data.post.createdAt instanceof Date === true
+
 // <Array>
 data.post.comments[0].id
 data.post.comments[123123].id
@@ -57,11 +61,11 @@ query.toString() === `{
     comments {
       id
     }
+    createdAt
   }
 }`;
 
-type QueryResultType = ExtractTypeFromGraphQLQuery<typeof query>;
-const result: QueryResultType = yourQueryResultFromServer;
+const result: GraphQLQueryType<typeof query> = yourQueryResultFromServer;
 
 // No Typescript Compile Error, Yes Intellisense Auto Complete!
 result.post;
@@ -69,7 +73,8 @@ result.post.id;
 result.post.writer;
 result.post.writer.id;
 result.post.writer.username;
-data.post.comments;
-data.post.comments[0].id;
+result.post.comments;
+result.post.comments[0].id;
+result.post.createdAt;
 
 ```

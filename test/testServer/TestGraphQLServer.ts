@@ -34,6 +34,9 @@ export default class TestGraphQLServer {
     this.server = this.app.listen(this.port);
   }
   public stopServer() {
+    if (!this.server) {
+      return;
+    }
     this.server.close();
   }
 }

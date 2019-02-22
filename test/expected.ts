@@ -1,16 +1,16 @@
 type NonFunctionPropertyNames<T> = { [K in keyof T]: T[K] extends Function ? never : K }[keyof T];
-type PrimitiveType = number | string | boolean;
+type ScalarType = number | string | boolean | Date;
 
 interface GraphQLQueryArrayType<T> extends Array<GraphQLQueryType<T>> {}
 
 export type GraphQLQueryType<T, NFPN = NonFunctionPropertyNames<T>> =
   T extends (infer U)[]
-  ? U extends PrimitiveType
+  ? U extends ScalarType
       ? Array<U>
       : GraphQLQueryArrayType<U>
   : {
     [K in NFPN & keyof T]:
-      T[K] extends object ? GraphQLQueryType<T[K]> : T[K];
+      T[K] extends ScalarType ? T[K] : GraphQLQueryType<T[K]>;
   }
 
 type GraphQLFetchResponse<T> = {
@@ -33,6 +33,10 @@ export function setFetchFunction(fetchFunction: FetchFunction) {
   fetch = fetchFunction;
 }
 
+function isObjectType(property: any): boolean {
+  return property instanceof Object && !(property instanceof Date);
+}
+
 abstract class GraphqlType {
   private propertyAndArgsMap: { [propertyName: string]: [string, any][] } = {};
 
@@ -42,6 +46,48 @@ abstract class GraphqlType {
     }
 
     this.propertyAndArgsMap[propertyName] = args;
+  }
+
+  protected convertServerResultType(serverResult: { [key: string]: any }): void {
+    const propertyNames = Object.keys(this.propertyAndArgsMap);
+
+    propertyNames.forEach(propertyName => {
+      const property = this[propertyName];
+
+      if (property instanceof Date) {
+        serverResult[propertyName] = new Date(serverResult[propertyName]);
+      }
+
+      if (!isObjectType(property)) {
+        return;
+      }
+
+      if (property instanceof Array) {
+        this.convertServerResultArrayType(property, serverResult[propertyName])
+        return;
+      }
+
+      property.convertServerResultType(serverResult[propertyName]);
+    });
+  }
+
+  protected convertServerResultArrayType(arrayProperty: (GraphqlType | ScalarType)[], serverResult: any[]): void {
+    arrayProperty.forEach((item, index) => {
+      if (item instanceof Date) {
+        serverResult[index] = new Date(serverResult[index]);
+      }
+
+      if (item instanceof Array) {
+        this.convertServerResultArrayType(item, serverResult[index]);
+        return;
+      }
+
+      if (!isObjectType(item)) {
+        return;
+      }
+
+      (item as GraphqlType).convertServerResultType(serverResult[index]);
+    });
   }
 
   protected toString(): string {
@@ -58,8 +104,7 @@ abstract class GraphqlType {
       }
 
       const property = this[propertyName];
-      const isPrimitiveType = !property;
-      if (!isPrimitiveType) {
+      if (isObjectType(property)) {
         const graphqlType = (property instanceof Array ? property[0] : property) as GraphqlType;
         if (graphqlType) {
           result += ` ${graphqlType.toString()}`;
@@ -157,7 +202,8 @@ class QueryType extends GraphqlType {
       throw new Error(text);
     }
 
-    const json = response.json();
+    const json = await response.json();
+    this.convertServerResultType(json.data);
     return json;
   }
 
@@ -221,6 +267,11 @@ export namespace Post {
     const post = new PostType();
     return post.addScores();
   }
+
+  export function addCreatedAt(): PostType & { createdAt: Date } {
+    const post = new PostType();
+    return post.addCreatedAt();
+  }
 }
 
 class PostType extends GraphqlType {
@@ -261,6 +312,14 @@ class PostType extends GraphqlType {
 
     return Object.assign(this, {
       scores: [],
+    });
+  }
+
+  addCreatedAt(): this & { createdAt: Date } {
+    this.addPropertyAndArgs('createdAt');
+
+    return Object.assign(this, {
+      createdAt: new Date(0),
     });
   }
 }
