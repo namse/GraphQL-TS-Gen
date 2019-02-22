@@ -36,6 +36,7 @@ function getDefaultValueOfTypeInString(type: GraphQLType): string {
   if (type.toString() === 'Date') {
     return 'new Date(0)';
   }
+  return '';
 }
 
 function convertTypeNameToTsType(typeName: string): string {
@@ -278,7 +279,7 @@ type FetchFunction = (
   options?: any
 ) => Promise<any>;
 
-let fetch: FetchFunction = global ? undefined : window && window.fetch;
+let fetch: FetchFunction | undefined = global ? undefined : window && window.fetch;
 let defaultServerUrl: string;
 let defaultFetchOptions: string;
 
@@ -313,14 +314,10 @@ abstract class GraphqlType {
     const propertyNames = Object.keys(this.propertyAndArgsMap);
 
     propertyNames.forEach(propertyName => {
-      const property = this[propertyName];
+      const property = (this as any)[propertyName] as GraphqlType | ScalarType;
 
       if (property instanceof Date) {
         serverResult[propertyName] = new Date(serverResult[propertyName]);
-      }
-
-      if (!isObjectType(property)) {
-        return;
       }
 
       if (property instanceof Array) {
@@ -328,7 +325,9 @@ abstract class GraphqlType {
         return;
       }
 
-      property.convertServerResultType(serverResult[propertyName]);
+      if (property instanceof GraphqlType) {
+        property.convertServerResultType(serverResult[propertyName]);
+      }
     });
   }
 
@@ -364,7 +363,7 @@ abstract class GraphqlType {
         result += \`(\${argumentsString})\`;
       }
 
-      const property = this[propertyName];
+      const property = (this as any)[propertyName] as GraphqlType | ScalarType;
       if (isObjectType(property)) {
         const graphqlType = (property instanceof Array ? property[0] : property) as GraphqlType;
         if (graphqlType) {

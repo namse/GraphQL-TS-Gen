@@ -7,8 +7,8 @@ import { buildSchema } from 'graphql';
 import resolver from './resolver';
 
 export default class TestGraphQLServer {
-  private app: Koa;
-  private server: Server;
+  private app?: Koa;
+  private server?: Server;
   constructor(
     private schemaString: string,
     private port: number,
@@ -31,6 +31,9 @@ export default class TestGraphQLServer {
 
   }
   public startServer() {
+    if (!this.app) {
+      throw new Error('server was not initialized. init server first.');
+    }
     this.server = this.app.listen(this.port);
   }
   public stopServer() {
