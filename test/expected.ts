@@ -24,13 +24,23 @@ function applyIndent(string: string, indent: number): string {
 
 type FetchFunction = (
   url: string,
-  init?: any
+  options?: any
 ) => Promise<any>;
 
 let fetch: FetchFunction = global ? undefined : window && window.fetch;
+let defaultServerUrl: string;
+let defaultFetchOptions: string;
 
 export function setFetchFunction(fetchFunction: FetchFunction) {
   fetch = fetchFunction;
+}
+
+export function setDefaultServerUrl(serverUrl: string) {
+  defaultServerUrl = serverUrl;
+}
+
+export function setDefaultFetchHeader(options: any) {
+  defaultFetchOptions = options;
 }
 
 function isObjectType(property: any): boolean {
@@ -176,9 +186,17 @@ class QueryType extends GraphqlType {
     });
   }
 
-  async fetch(url: string, options?: RequestInit): Promise<GraphQLFetchResponse<this>> {
+  async fetch(url?: string, options?: any): Promise<GraphQLFetchResponse<this>> {
     if (!fetch) {
       throw new Error('cannot find fetch function. please setFetchFunction() to set fetch function.');
+    }
+
+    if (!url) {
+      url = defaultServerUrl;
+    }
+
+    if (!options) {
+      options = defaultFetchOptions;
     }
 
     const queryString = this.toString();
