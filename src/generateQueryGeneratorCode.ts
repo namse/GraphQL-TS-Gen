@@ -200,10 +200,8 @@ class ${className} extends GraphqlType {
 
     const queryString = this.toString();
 
-    const queryStringWithoutWhiteSpaces = queryString.replace(/\\s+/gm,'');
-
     if (!options || !options.method || options.method === 'GET') {
-      url = \`\${url}?query=\${queryStringWithoutWhiteSpaces}\`;
+      url = \`\${url}?query=\${queryString}\`;
     } else {
       options.body = JSON.stringify({
         query: queryString,
