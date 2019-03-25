@@ -357,7 +357,7 @@ abstract class GraphqlType {
       const args = this.propertyAndArgsMap[propertyName];
 
       if (args.length) {
-        const argumentsString = args.map(([argumentName, argumentValue]) => \`\${argumentName}: \${argumentValue}\`).join(', ');
+        const argumentsString = args.map(([argumentName, argumentValue]) => \`\${argumentName}: \${JSON.stringify(argumentValue)}\`).join(', ');
         result += \`(\${argumentsString})\`;
       }
 
