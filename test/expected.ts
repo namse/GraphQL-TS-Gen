@@ -107,7 +107,7 @@ abstract class GraphqlType {
       const args = this.propertyAndArgsMap[propertyName];
 
       if (args.length) {
-        const argumentsString = args.map(([argumentName, argumentValue]) => `${argumentName}: ${argumentValue}`).join(', ');
+        const argumentsString = args.map(([argumentName, argumentValue]) => `${argumentName}: ${JSON.stringify(argumentValue)}`).join(', ');
         result += `(${argumentsString})`;
       }
 
@@ -199,10 +199,8 @@ class QueryType extends GraphqlType {
 
     const queryString = this.toString();
 
-    const queryStringWithoutWhiteSpaces = queryString.replace(/\s+/gm,'');
-
     if (!options || !options.method || options.method === 'GET') {
-      url = `${url}?query=${queryStringWithoutWhiteSpaces}`;
+      url = `${url}?query=${queryString}`;
     } else {
       options.body = JSON.stringify({
         query: queryString,

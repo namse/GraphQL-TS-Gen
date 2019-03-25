@@ -1,6 +1,7 @@
 import Koa from 'koa';
 import Router from 'koa-router';
 import bodyParser from 'koa-bodyparser';
+// @ts-ignore
 import graphqlHTTP from 'koa-graphql';
 import { Server } from 'http';
 import { buildSchema } from 'graphql';
