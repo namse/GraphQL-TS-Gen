@@ -330,6 +330,9 @@ abstract class GraphqlType {
   }
 
   protected convertServerResultArrayType(arrayProperty: (GraphqlType | ScalarType)[], serverResult: any[]): void {
+    if (!serverResult.length) {
+      return;
+    }
     arrayProperty.forEach((item, index) => {
       if (item instanceof Date) {
         serverResult[index] = new Date(serverResult[index]);
