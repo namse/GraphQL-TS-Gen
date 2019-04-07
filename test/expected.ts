@@ -59,6 +59,10 @@ abstract class GraphqlType {
   }
 
   protected convertServerResultType(serverResult: { [key: string]: any }): void {
+    if (!serverResult) {
+      return;
+    }
+
     const propertyNames = Object.keys(this.propertyAndArgsMap);
 
     propertyNames.forEach(propertyName => {
@@ -80,9 +84,10 @@ abstract class GraphqlType {
   }
 
   protected convertServerResultArrayType(arrayProperty: (GraphqlType | ScalarType)[], serverResult: any[]): void {
-    if (!serverResult.length) {
+    if (!serverResult || !serverResult.length) {
       return;
     }
+
     arrayProperty.forEach((item, index) => {
       if (item instanceof Date) {
         serverResult[index] = new Date(serverResult[index]);
