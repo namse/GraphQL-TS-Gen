@@ -16,7 +16,7 @@
   "dependencies": {
     "@types/node": "^10.12.18",
     "fs-extra": "^7.0.1",
-    "graphql": "^0.13.2",
+    "graphql": "^15.4.0",
     "typescript": "^3.2.2"
   },
   "devDependencies": {
@@ -32,7 +32,7 @@
     "koa-bodyparser": "^4.2.1",
     "koa-graphql": "^0.8.0",
     "koa-router": "^7.4.0",
-    "node-fetch": "^2.3.0",
+    "node-fetch": "^2.6.1",
     "ts-jest": "^23.10.5",
     "ts-node": "^8.0.2",
     "ts-node-dev": "^1.0.0-pre.32"

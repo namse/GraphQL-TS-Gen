@@ -14,14 +14,17 @@ import {
   GraphQLBoolean,
   buildSchema,
   isScalarType,
+  GraphQLUnionType,
+  isUnionType,
 } from "graphql";
 import { toCamelCase, toPascalCase } from "./utils/stringUtils";
+import { head } from "./head";
 
 function getDefaultValueOfTypeInString(type: GraphQLType): string {
   if (type instanceof GraphQLNonNull) {
     return getDefaultValueOfTypeInString(type.ofType);
   }
-  if(type instanceof GraphQLList) {
+  if (type instanceof GraphQLList) {
     return '[]';
   }
   if (type === GraphQLInt || type === GraphQLFloat) {
@@ -80,7 +83,7 @@ function checkIsSomethingOfScalar(type: GraphQLType): boolean {
   if (type instanceof GraphQLNonNull) {
     return checkIsSomethingOfScalar(type.ofType);
   }
-  if(type instanceof GraphQLList) {
+  if (type instanceof GraphQLList) {
     return checkIsSomethingOfScalar(type.ofType);
   }
   return type instanceof GraphQLScalarType;
@@ -109,7 +112,7 @@ function isListOfObject(type: GraphQLType): boolean {
   return type instanceof GraphQLList && type.ofType instanceof GraphQLObjectType;
 }
 
-function travel(object: GraphQLObjectType) {
+function travelObjectType(object: GraphQLObjectType) {
   const objectName = object.name;
   const isQuery = objectName === 'Query';
   const className = `${objectName}Type`;
@@ -164,7 +167,7 @@ class ${className} extends GraphqlType {
 
     classMethodStrings.push(classMethodString);
 
-    const passingArgsNamesString = paramNameAndTypesForParamString.map(({name}) => name).join(', ');
+    const passingArgsNamesString = paramNameAndTypesForParamString.map(({ name }) => name).join(', ');
 
     const namespaceMethodString = `  export function ${functionName}${genericString}(${paramString}): ${className} & { ${name}: ${nextTsType} } {
     const ${instanceName} = new ${className}();
@@ -233,159 +236,31 @@ class ${className} extends GraphqlType {
   return `${namespaceString}${classString}`;
 }
 
-export default function generateQueryGeneratorCode(schemaString: string) {
+export function travelUnionType(union: GraphQLUnionType): string {
+
+}
+
+export default function generateQueryGeneratorCode(schemaString: string): string {
   const parsed = parse(schemaString);
   const astSchema = buildASTSchema(parsed);
 
   const queryType = astSchema.getTypeMap();
 
-  const types = Object.entries(queryType)
+  const objectTypes = Object.entries(queryType)
     .filter(([key, value]) => {
-
       return isObjectType(value) && !key.startsWith('__');
     })
     .map(([, value]) => {
-      return travel(value as GraphQLObjectType);
+      return travelObjectType(value as GraphQLObjectType);
     }).join('');
 
-  const result = `type NonFunctionPropertyNames<T> = { [K in keyof T]: T[K] extends Function ? never : K }[keyof T];
-type ScalarType = number | string | boolean | Date;
+  const unionTypes = Object.entries(queryType)
+  .filter(([key, value]) => {
+    return isUnionType(value) && !key.startsWith('__');
+  })
+  .map(([, value]) => {
+    travelUnionType(value as GraphQLUnionType);
+  }).join('');
 
-interface GraphQLQueryArrayType<T> extends Array<GraphQLQueryType<T>> {}
-
-export type GraphQLQueryType<T, NFPN = NonFunctionPropertyNames<T>> =
-  T extends (infer U)[]
-  ? U extends ScalarType
-      ? Array<U>
-      : GraphQLQueryArrayType<U>
-  : {
-    [K in NFPN & keyof T]:
-      T[K] extends ScalarType ? T[K] : GraphQLQueryType<T[K]>;
-  }
-
-type GraphQLFetchResponse<T> = {
-  data: GraphQLQueryType<T>,
-  errors: any[],
-}
-
-function applyIndent(string: string, indent: number): string {
-  return string.split('\\n').map(line => \`\${' '.repeat(indent)}\${line}\`).join('\\n');
-}
-
-type FetchFunction = (
-  url: string,
-  options?: any
-) => Promise<any>;
-
-let fetch: FetchFunction | undefined = global ? undefined : window && window.fetch;
-let defaultServerUrl: string;
-let defaultFetchOptions: string;
-
-export function setFetchFunction(fetchFunction: FetchFunction) {
-  fetch = fetchFunction;
-}
-
-export function setDefaultServerUrl(serverUrl: string) {
-  defaultServerUrl = serverUrl;
-}
-
-export function setDefaultFetchHeader(options: any) {
-  defaultFetchOptions = options;
-}
-
-function isObjectType(property: any): boolean {
-  return property instanceof Object && !(property instanceof Date);
-}
-
-abstract class GraphqlType {
-  private propertyAndArgsMap: { [propertyName: string]: [string, any][] } = {};
-
-  protected addPropertyAndArgs(propertyName: string, args: [string, any][] = []) {
-    if (this.propertyAndArgsMap[propertyName]) {
-      throw new Error(\`\${propertyName} already set before. duplicated.\`);
-    }
-
-    this.propertyAndArgsMap[propertyName] = args;
-  }
-
-  protected convertServerResultType(serverResult: { [key: string]: any }): void {
-    if (!serverResult) {
-      return;
-    }
-
-    const propertyNames = Object.keys(this.propertyAndArgsMap);
-
-    propertyNames.forEach(propertyName => {
-      const property = (this as any)[propertyName] as GraphqlType | ScalarType;
-
-      if (property instanceof Date) {
-        serverResult[propertyName] = new Date(serverResult[propertyName]);
-      }
-
-      if (property instanceof Array) {
-        this.convertServerResultArrayType(property, serverResult[propertyName])
-        return;
-      }
-
-      if (property instanceof GraphqlType) {
-        property.convertServerResultType(serverResult[propertyName]);
-      }
-    });
-  }
-
-  protected convertServerResultArrayType(arrayProperty: (GraphqlType | ScalarType)[], serverResult: any[]): void {
-    if (!serverResult || !serverResult.length) {
-      return;
-    }
-
-    arrayProperty.forEach((item, index) => {
-      if (item instanceof Date) {
-        serverResult[index] = new Date(serverResult[index]);
-      }
-
-      if (item instanceof Array) {
-        this.convertServerResultArrayType(item, serverResult[index]);
-        return;
-      }
-
-      if (!isObjectType(item)) {
-        return;
-      }
-
-      (item as GraphqlType).convertServerResultType(serverResult[index]);
-    });
-  }
-
-  protected toString(): string {
-    const propertyNames = Object.keys(this.propertyAndArgsMap);
-
-    const propertiesString = propertyNames.map(propertyName => {
-      let result = \`\${propertyName}\`;
-
-      const args = this.propertyAndArgsMap[propertyName];
-
-      if (args.length) {
-        const argumentsString = args.map(([argumentName, argumentValue]) => \`\${argumentName}: \${JSON.stringify(argumentValue)}\`).join(', ');
-        result += \`(\${argumentsString})\`;
-      }
-
-      const property = (this as any)[propertyName] as GraphqlType | ScalarType;
-      if (isObjectType(property)) {
-        const graphqlType = (property instanceof Array ? property[0] : property) as GraphqlType;
-        if (graphqlType) {
-          result += \` \${graphqlType.toString()}\`;
-        }
-      }
-
-      return result;
-    })
-    .map(string => applyIndent(string, 2))
-    .join('\\n');
-    return \`{
-\${propertiesString}
-}\`;
-  }
-}
-`;
-  return result + types;
+  return head + objectTypes;
 }

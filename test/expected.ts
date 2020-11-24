@@ -1,5 +1,6 @@
 type NonFunctionPropertyNames<T> = { [K in keyof T]: T[K] extends Function ? never : K }[keyof T];
 type ScalarType = number | string | boolean | Date;
+type ID = String;
 
 interface GraphQLQueryArrayType<T> extends Array<GraphQLQueryType<T>> {}
 

@@ -12,6 +12,7 @@ type Post {
   comments: [Comment]!
   scores: [Int]!
   createdAt: Date!
+  components: [Component]!
 }
 
 type Comment {
@@ -25,4 +26,16 @@ type Query {
   me: User!
   user(userId: Int!): User!
   post(postId: Int!): Post!
+}
+
+union Component = TextComponent | CommentComponent
+
+type TextComponent {
+  id: ID!
+  content: String!
+}
+
+type CommentComponent {
+  id: ID!
+  comments: [Comment]!
 }
